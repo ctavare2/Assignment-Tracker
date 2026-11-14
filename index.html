@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assignment Tracker | Fall 2026 Semester</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    .kanban-col { min-height: 460px; }
+    .drag-over { background-color: #eff6ff !important; border-color: #3b82f6 !important; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  </style>
+</head>
+<body class="p-4 md:p-8 max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Assignment Tracker | Fall 2026 Semester</h1>
+      <p class="text-sm text-slate-500 mt-1">Manage coursework across your 5 enrolled courses with live progress & priority calendar.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">+ Add Task</button>
+      <button onclick="exportCSV()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-3.5 py-2 rounded-lg shadow-sm transition">Export CSV</button>
+      <button onclick="resetDefaultData()" class="bg-white hover:bg-rose-50 text-rose-600 border border-slate-300 text-sm font-medium px-3.5 py-2 rounded-lg shadow-sm transition" title="Restore original 26 assignments">Reset</button>
+    </div>
+  </header>
+
+  <!-- Storage Warning Banner (only shows if embedded in a restricted sandbox) -->
+  <div id="storageBanner" class="hidden mb-6 bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
+    <span><strong>Note:</strong> Browser storage is restricted in this frame. Open this page directly via your GitHub Pages link so changes stay saved!</span>
+    <button onclick="document.getElementById('storageBanner').classList.add('hidden')" class="text-amber-700 font-semibold ml-4">Dismiss</button>
+  </div>
+
+  <!-- Top KPI Cards -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Assignments</div>
+      <div id="kpiTotal" class="text-2xl font-bold text-slate-900 mt-1">26</div>
+      <div class="text-xs text-slate-500 mt-1">Across 5 enrolled courses</div>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Completion Rate</div>
+      <div id="kpiRate" class="text-2xl font-bold text-emerald-600 mt-1">0.0%</div>
+      <div class="text-xs text-slate-500 mt-1">Overall semester progress</div>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">In Progress</div>
+      <div id="kpiInProgress" class="text-2xl font-bold text-blue-600 mt-1">1</div>
+      <div class="text-xs text-slate-500 mt-1">Currently active tasks</div>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">High Priority Pending</div>
+      <div id="kpiHigh" class="text-2xl font-bold text-rose-600 mt-1">6</div>
+      <div class="text-xs text-slate-500 mt-1">Needs immediate focus</div>
+    </div>
+  </section>
+
+  <!-- Enrolled Courses & Progress -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Enrolled Courses & Academic Progress</h2>
+      <span class="text-xs text-slate-400">Click a course to filter</span>
+    </div>
+    <div id="courseCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"></div>
+  </section>
+
+  <!-- Filter Bar -->
+  <section class="flex flex-wrap items-center gap-2 mb-6 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 mr-1">Filter Subject:</span>
+    <div id="filterPills" class="flex flex-wrap gap-1.5"></div>
+  </section>
+
+  <!-- Kanban Board -->
+  <section class="mb-10">
+    <h2 class="text-lg font-bold text-slate-800 mb-3">Kanban Board</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <!-- Not Started -->
+      <div class="bg-slate-100/80 p-4 rounded-xl border border-slate-200 kanban-col" ondragover="allowDrop(event)" ondragleave="leaveDrop(event)" ondrop="dropTask(event, 'Not Started')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+            <h3 class="font-semibold text-slate-700 text-sm">Not Started</h3>
+          </div>
+          <span id="count-Not Started" class="text-xs font-semibold bg-white text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">0</span>
+        </div>
+        <div id="col-Not Started" class="space-y-3"></div>
+      </div>
+
+      <!-- In Progress -->
+      <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-200/70 kanban-col" ondragover="allowDrop(event)" ondragleave="leaveDrop(event)" ondrop="dropTask(event, 'In Progress')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            <h3 class="font-semibold text-blue-900 text-sm">In Progress</h3>
+          </div>
+          <span id="count-In Progress" class="text-xs font-semibold bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">0</span>
+        </div>
+        <div id="col-In Progress" class="space-y-3"></div>
+      </div>
+
+      <!-- Completed -->
+      <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200/70 kanban-col" ondragover="allowDrop(event)" ondragleave="leaveDrop(event)" ondrop="dropTask(event, 'Completed')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <h3 class="font-semibold text-emerald-900 text-sm">Completed</h3>
+          </div>
+          <span id="count-Completed" class="text-xs font-semibold bg-white text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">0</span>
+        </div>
+        <div id="col-Completed" class="space-y-3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Priority Calendar -->
+  <section class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Due Date Calendar</h2>
+        <div class="flex items-center gap-4 text-xs text-slate-500 mt-1">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> High Priority</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Medium Priority</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Low Priority</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="changeMonth(-1)" class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50">&larr; Prev</button>
+        <span id="calMonthLabel" class="font-semibold text-sm min-w-[135px] text-center">November 2026</span>
+        <button onclick="changeMonth(1)" class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Next &rarr;</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-7 text-center text-xs font-semibold text-slate-400 uppercase pb-2 border-b border-slate-200">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div id="calendarGrid" class="grid grid-cols-7 border-l border-slate-200"></div>
+  </section>
+
+  <!-- Add/Edit Task Modal -->
+  <div id="taskModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Add Assignment</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+      </div>
+      <form id="taskForm" onsubmit="saveTask(event)" class="space-y-4">
+        <input type="hidden" id="taskId" />
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Task Name</label>
+          <input id="taskName" type="text" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Course</label>
+            <select id="taskCourse" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="COS277">COS277</option>
+              <option value="BIB334">BIB334</option>
+              <option value="BUS106">BUS106</option>
+              <option value="BUS210">BUS210</option>
+              <option value="BUS230">BUS230</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Type</label>
+            <select id="taskType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="Homework">Homework</option>
+              <option value="Project">Project</option>
+              <option value="Paper">Paper</option>
+              <option value="Exam">Exam</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Priority</label>
+            <select id="taskPriority" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="High">High</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Status</label>
+            <select id="taskStatus" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Due Date</label>
+            <input id="taskDue" type="date" required class="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-sm" />
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+          <button type="button" id="deleteBtn" onclick="deleteTask()" class="hidden text-sm text-rose-600 hover:underline font-medium">Delete Task</button>
+          <div class="flex gap-2 ml-auto">
+            <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+            <button type="submit" class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">Save Task</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const COURSES = [
+      { code: 'COS277', name: 'Software Development Fundamental', credits: 4 },
+      { code: 'BIB334', name: 'Culture & literacy of the OT', credits: 4 },
+      { code: 'BUS106', name: 'Business Applications', credits: 1 },
+      { code: 'BUS210', name: 'Financial Accounting', credits: 4 },
+      { code: 'BUS230', name: 'Managing Orgs & People', credits: 4 }
+    ];
+
+    const DEFAULT_TASKS = [
+      { id: '1', name: 'Ch8 Assignment', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-16' },
+      { id: '2', name: 'CH9 Smartbook', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-16' },
+      { id: '3', name: 'MS Excel Assignment S3', course: 'BUS106', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-16' },
+      { id: '4', name: 'Magic Squares Part 1', course: 'COS277', type: 'Project', priority: 'Medium', status: 'Not Started', due: '2026-11-17' },
+      { id: '5', name: 'MS Excel Assignment S4', course: 'BUS106', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-16' },
+      { id: '6', name: 'MS Excel Assignment S5', course: 'BUS106', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-23' },
+      { id: '7', name: 'MS Excel Assignment S6', course: 'BUS106', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-23' },
+      { id: '8', name: 'MS Excel Practice Exam', course: 'BUS106', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-30' },
+      { id: '9', name: 'MindTap CH18', course: 'BUS230', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-17' },
+      { id: '10', name: 'Vulnerbility TED talk & Discussion', course: 'BUS230', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-19' },
+      { id: '11', name: 'CH10 Smartbook', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-30' },
+      { id: '12', name: 'CH10 Assignment', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-07' },
+      { id: '13', name: 'CH11 Smartbook', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-07' },
+      { id: '14', name: 'CH11 Assignment', course: 'BUS210', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-11' },
+      { id: '15', name: 'Monopoly Pt 2', course: 'BUS210', type: 'Project', priority: 'High', status: 'Not Started', due: '2026-11-30' },
+      { id: '16', name: 'Career Exploration', course: 'BUS210', type: 'Homework', priority: 'High', status: 'In Progress', due: '2026-11-16' },
+      { id: '17', name: 'Magic Squares GUI', course: 'COS277', type: 'Project', priority: 'Medium', status: 'Not Started', due: '2026-11-19' },
+      { id: '18', name: 'BIB Final Paper Prep', course: 'BIB334', type: 'Exam', priority: 'High', status: 'Not Started', due: '2026-12-15' },
+      { id: '19', name: 'BIB Notes', course: 'BIB334', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-16' },
+      { id: '20', name: 'BIB Notes', course: 'BIB334', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-11-30' },
+      { id: '21', name: 'BIB Notes', course: 'BIB334', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-02' },
+      { id: '22', name: 'BIB Notes', course: 'BIB334', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-04' },
+      { id: '23', name: 'Employee Engagement Paper', course: 'BUS230', type: 'Homework', priority: 'Medium', status: 'Not Started', due: '2026-12-01' },
+      { id: '24', name: 'Article Paper & Discussion', course: 'BUS230', type: 'Paper', priority: 'High', status: 'Not Started', due: '2026-12-03' },
+      { id: '25', name: 'Faith Integration Paper & Discussion', course: 'BUS230', type: 'Paper', priority: 'High', status: 'Not Started', due: '2026-12-08' },
+      { id: '26', name: 'Final Exam Paper', course: 'BUS230', type: 'Exam', priority: 'High', status: 'Not Started', due: '2026-12-14' }
+    ];
+
+    const STORAGE_KEY = 'fall2026_assignment_tracker_v1';
+    let tasks = [];
+    let selectedCourse = 'ALL';
+    let calYear = 2026;
+    let calMonth = 10; // November (0-indexed)
+
+    function loadTasks() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        tasks = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      } catch (e) {
+        tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+        document.getElementById('storageBanner').classList.remove('hidden');
+      }
+    }
+
+    function persistTasks() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      } catch (e) {
+        document.getElementById('storageBanner').classList.remove('hidden');
+      }
+    }
+
+    function resetDefaultData() {
+      if (confirm('Reset all assignments back to the original 26 Fall 2026 tasks?')) {
+        tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+        persistTasks();
+        renderAll();
+      }
+    }
+
+    function setFilter(course) {
+      selectedCourse = (selectedCourse === course) ? 'ALL' : course;
+      renderAll();
+    }
+
+    function renderAll() {
+      const filtered = selectedCourse === 'ALL' ? tasks : tasks.filter(t => t.course === selectedCourse);
+
+      // KPIs
+      const total = filtered.length;
+      const completed = filtered.filter(t => t.status === 'Completed').length;
+      const inProg = filtered.filter(t => t.status === 'In Progress').length;
+      const highPending = filtered.filter(t => t.priority === 'High' && t.status !== 'Completed').length;
+      const rate = total ? ((completed / total) * 100).toFixed(1) : '0.0';
+
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiRate').textContent = rate + '%';
+      document.getElementById('kpiInProgress').textContent = inProg;
+      document.getElementById('kpiHigh').textContent = highPending;
+
+      // Course Cards
+      const courseContainer = document.getElementById('courseCards');
+      courseContainer.innerHTML = COURSES.map(c => {
+        const cTasks = tasks.filter(t => t.course === c.code);
+        const cDone = cTasks.filter(t => t.status === 'Completed').length;
+        const pct = cTasks.length ? Math.round((cDone / cTasks.length) * 100) : 0;
+        const active = selectedCourse === c.code ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/30' : 'border-slate-200 bg-white hover:border-slate-300';
+        return `
+          <div onclick="setFilter('${c.code}')" class="cursor-pointer p-3.5 rounded-xl border transition shadow-sm ${active}">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">${c.code}</span>
+              <span class="text-xs text-slate-400">${c.credits} cr</span>
+            </div>
+            <div class="text-xs font-medium text-slate-700 mt-2 truncate" title="${c.name}">${c.name}</div>
+            <div class="flex items-center justify-between text-xs mt-2.5 mb-1">
+              <span class="text-slate-500">${cDone}/${cTasks.length} done</span>
+              <span class="font-semibold text-slate-700">${pct}%</span>
+            </div>
+            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div class="bg-emerald-500 h-full transition-all" style="width:${pct}%"></div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Filter Pills
+      const pills = ['ALL', ...COURSES.map(c => c.code)];
+      document.getElementById('filterPills').innerHTML = pills.map(code => {
+        const active = selectedCourse === code
+          ? 'bg-slate-900 text-white'
+          : 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+        return `<button onclick="setFilter('${code}')" class="px-3 py-1 rounded-full text-xs font-semibold transition ${active}">${code === 'ALL' ? 'All Subjects' : code}</button>`;
+      }).join('');
+
+      // Kanban Columns
+      ['Not Started', 'In Progress', 'Completed'].forEach(status => {
+        const colTasks = filtered.filter(t => t.status === status).sort((a, b) => a.due.localeCompare(b.due));
+        document.getElementById('count-' + status).textContent = colTasks.length;
+        document.getElementById('col-' + status).innerHTML = colTasks.map(t => {
+          const prioStyle = t.priority === 'High'
+            ? 'bg-rose-100 text-rose-700 border-rose-200'
+            : t.priority === 'Medium'
+            ? 'bg-amber-100 text-amber-800 border-amber-200'
+            : 'bg-emerald-100 text-emerald-700 border-emerald-200';
+
+          return `
+            <div draggable="true" ondragstart="dragTask(event, '${t.id}')" onclick="openModal('${t.id}')"
+                 class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <span class="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">${t.course} &middot; ${t.type}</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border ${prioStyle}">${t.priority}</span>
+              </div>
+              <div class="font-semibold text-sm text-slate-900 leading-snug mb-3 ${t.status === 'Completed' ? 'line-through text-slate-400' : ''}">${t.name}</div>
+              <div class="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100" onclick="event.stopPropagation()">
+                <span>Due: <strong class="text-slate-700">${t.due}</strong></span>
+                <select onchange="quickStatus('${t.id}', this.value)" class="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs text-slate-700">
+                  <option value="Not Started" ${t.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+                  <option value="In Progress" ${t.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                  <option value="Completed" ${t.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                </select>
+              </div>
+            </div>`;
+        }).join('');
+      });
+
+      renderCalendar(filtered);
+    }
+
+    function renderCalendar(filtered) {
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      document.getElementById('calMonthLabel').textContent = `${monthNames[calMonth]} ${calYear}`;
+
+      const firstDay = new Date(calYear, calMonth, 1).getDay();
+      const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      const grid = document.getElementById('calendarGrid');
+      let cells = '';
+
+      for (let i = 0; i < firstDay; i++) {
+        cells += `<div class="min-h-[95px] bg-slate-50/60 border-r border-b border-slate-200 p-1.5"></div>`;
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayTasks = filtered.filter(t => t.due === dateStr);
+        const chips = dayTasks.map(t => {
+          const bg = t.priority === 'High' ? 'bg-rose-500 text-white' : t.priority === 'Medium' ? 'bg-amber-400 text-slate-900' : 'bg-emerald-500 text-white';
+          const opacity = t.status === 'Completed' ? 'opacity-45 line-through' : '';
+          return `<div onclick="openModal('${t.id}')" class="text-[11px] font-medium px-1.5 py-0.5 rounded truncate cursor-pointer mb-1 ${bg} ${opacity}" title="${t.course}: ${t.name}">${t.course}: ${t.name}</div>`;
+        }).join('');
+
+        cells += `
+          <div class="min-h-[95px] border-r border-b border-slate-200 p-1.5 hover:bg-slate-50 transition">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-slate-600">${d}</span>
+              <button onclick="openModal(null, '${dateStr}')" class="text-xs text-slate-400 hover:text-blue-600 font-bold px-1">+</button>
+            </div>
+            <div>${chips}</div>
+          </div>`;
+      }
+      grid.innerHTML = cells;
+    }
+
+    function changeMonth(delta) {
+      calMonth += delta;
+      if (calMonth > 11) { calMonth = 0; calYear++; }
+      if (calMonth < 0) { calMonth = 11; calYear--; }
+      renderAll();
+    }
+
+    // Drag and Drop
+    function dragTask(ev, id) { ev.dataTransfer.setData('text/plain', id); }
+    function allowDrop(ev) { ev.preventDefault(); ev.currentTarget.classList.add('drag-over'); }
+    function leaveDrop(ev) { ev.currentTarget.classList.remove('drag-over'); }
+    function dropTask(ev, newStatus) {
+      ev.preventDefault();
+      ev.currentTarget.classList.remove('drag-over');
+      const id = ev.dataTransfer.getData('text/plain');
+      quickStatus(id, newStatus);
+    }
+
+    function quickStatus(id, newStatus) {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.status = newStatus;
+        persistTasks();
+        renderAll();
+      }
+    }
+
+    // Modal
+    function openModal(id = null, presetDate = '2026-11-20') {
+      const modal = document.getElementById('taskModal');
+      const delBtn = document.getElementById('deleteBtn');
+      if (id) {
+        const t = tasks.find(item => item.id === id);
+        document.getElementById('modalTitle').textContent = 'Edit Assignment';
+        document.getElementById('taskId').value = t.id;
+        document.getElementById('taskName').value = t.name;
+        document.getElementById('taskCourse').value = t.course;
+        document.getElementById('taskType').value = t.type;
+        document.getElementById('taskPriority').value = t.priority;
+        document.getElementById('taskStatus').value = t.status;
+        document.getElementById('taskDue').value = t.due;
+        delBtn.classList.remove('hidden');
+      } else {
+        document.getElementById('modalTitle').textContent = 'Add Assignment';
+        document.getElementById('taskId').value = '';
+        document.getElementById('taskName').value = '';
+        document.getElementById('taskCourse').value = selectedCourse === 'ALL' ? 'BUS210' : selectedCourse;
+        document.getElementById('taskType').value = 'Homework';
+        document.getElementById('taskPriority').value = 'Medium';
+        document.getElementById('taskStatus').value = 'Not Started';
+        document.getElementById('taskDue').value = presetDate;
+        delBtn.classList.add('hidden');
+      }
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('taskModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveTask(ev) {
+      ev.preventDefault();
+      const id = document.getElementById('taskId').value;
+      const payload = {
+        id: id || String(Date.now()),
+        name: document.getElementById('taskName').value.trim(),
+        course: document.getElementById('taskCourse').value,
+        type: document.getElementById('taskType').value,
+        priority: document.getElementById('taskPriority').value,
+        status: document.getElementById('taskStatus').value,
+        due: document.getElementById('taskDue').value
+      };
+      if (id) {
+        const idx = tasks.findIndex(t => t.id === id);
+        if (idx > -1) tasks[idx] = payload;
+      } else {
+        tasks.push(payload);
+      }
+      persistTasks();
+      closeModal();
+      renderAll();
+    }
+
+    function deleteTask() {
+      const id = document.getElementById('taskId').value;
+      tasks = tasks.filter(t => t.id !== id);
+      persistTasks();
+      closeModal();
+      renderAll();
+    }
+
+    function exportCSV() {
+      const headers = ['Task Name','Course','Type','Priority','Status','Due Date'];
+      const rows = tasks.map(t => [t.name, t.course, t.type, t.priority, t.status, t.due].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'Fall_2026_Assignment_Tracker.csv';
+      link.click();
+    }
+
+    loadTasks();
+    renderAll();
+  </script>
+</body>
+</html>
